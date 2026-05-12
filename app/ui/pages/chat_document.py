@@ -180,13 +180,13 @@ You have access to the following context about the scanned document. Use ALL of 
 {remediation_context}
 
 ═══════════════════════════════════════
-INSTRUCTIONS:
-- Answer the user's question using the above context.
-- Reference specific violations, rules, or policies when relevant.
-- If asked about what to fix, provide specific, actionable steps.
-- If asked about a name, email, SSN, etc., reference the exact matched text from violations.
-- Be thorough and professional. Format responses with markdown for clarity.
-- If the information is not in the context, say so clearly."""
+INSTRUCTIONS (FOLLOW STRICTLY):
+1. ALWAYS answer from the CURRENT DOCUMENT first. The "Document Content" section above is your PRIMARY source of truth.
+2. When the user asks about data in their document (names, phones, emails, etc.), answer ONLY from "Document Content" — never cite historical remediations as the answer.
+3. Historical Remediations are ONLY for reference on how similar issues were fixed in the PAST. Never confuse them with the current document.
+4. When the user asks "should I remove X" or "what to do", check the ACTIVE COMPLIANCE RULES above. If a rule matches (e.g., Phone Number Detection = High severity), be DECISIVE: state clearly that it violates the rule and recommend removal. Do NOT say "there is no specific rule" if a matching rule exists.
+5. Cross-reference violations, rules, and policies to give specific, actionable advice.
+6. Be concise, clear, and professional. Use markdown formatting."""
 
                 try:
                     response = llm_service.analyze(system_prompt, prompt, expect_json=False)
