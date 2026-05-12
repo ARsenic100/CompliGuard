@@ -7,12 +7,19 @@ search/filter, and downloadable reports.
 
 from __future__ import annotations
 
+import io
 import json
+import re
+import uuid
 
 import plotly.express as px
 import plotly.graph_objects as go
 import streamlit as st
+from fpdf import FPDF
 
+from app.services.llm_service import get_llm_service
+from app.services.rag_service import get_rag_service
+from app.storage.database import Database
 from app.ui.components import (
     render_gradient_divider,
     render_page_header,
@@ -25,9 +32,6 @@ from app.utils.helpers import (
     count_violations_by_severity,
     get_category_icon,
 )
-from app.services.rag_service import get_rag_service
-from app.storage.database import Database
-import uuid
 
 
 def render_compliance_results_page() -> None:
@@ -101,7 +105,7 @@ def render_compliance_results_page() -> None:
             _render_page_wise_results(page_results)
 
         with tab_all:
-            _render_all_violations(all_violations)
+            _render_all_violations(all_violations, result)
     else:
         st.success("🎉 No compliance violations detected! The document is fully compliant.")
 
@@ -228,9 +232,132 @@ def _render_page_wise_results(page_results: list[dict]) -> None:
                 render_violation_card(v)
 
 
-def _render_all_violations(violations: list[dict]) -> None:
-    """Render all violations with search and filter."""
+def _ai_generate_resolution(violation: dict) -> str:
+    """Use the LLM to generate a resolution for a single violation."""
+    llm = get_llm_service()
+    if not llm.is_available:
+        return "LLM unavailable. Please resolve manually."
+
+    system_prompt = (
+        "You are a compliance remediation expert. Given a compliance violation, "
+        "write a concise, actionable resolution that describes exactly how to fix "
+        "the issue in the document. Be specific: state what text should be removed, "
+        "redacted, or replaced. Keep the response under 100 words."
+    )
+    user_prompt = (
+        f"Violation Type: {violation.get('violation_type', 'Unknown')}\n"
+        f"Category: {violation.get('category', 'Unknown')}\n"
+        f"Severity: {violation.get('severity', 'Medium')}\n"
+        f"Matched Text: {violation.get('matched_text', '')}\n"
+        f"Reason: {violation.get('reason', '')}\n\n"
+        f"Write the resolution:"
+    )
+    try:
+        result = llm.analyze(system_prompt, user_prompt, expect_json=False)
+        return result if isinstance(result, str) else str(result)
+    except Exception as e:
+        return f"AI resolution failed: {e}"
+
+
+def _generate_resolved_pdf(result: dict, resolutions: dict[int, str]) -> bytes:
+    """
+    Generate a clean, resolved PDF where every violation's matched text
+    is replaced with a redacted/sanitized version.
+
+    Args:
+        result: The full scan result dict.
+        resolutions: Mapping of violation index -> AI resolution text.
+
+    Returns:
+        PDF file as bytes.
+    """
+    extracted_pages = result.get("extracted_pages", {})
+    all_violations = result.get("all_violations", [])
+    filename = result.get("file_metadata", {}).get("filename", "document")
+
+    # Build a page-indexed map of replacements
+    page_replacements: dict[int, list[tuple[str, str]]] = {}
+    for idx, v in enumerate(all_violations):
+        page_num = v.get("page_number", 0)
+        matched = v.get("matched_text", "")
+        if not matched:
+            continue
+        if page_num not in page_replacements:
+            page_replacements[page_num] = []
+        v_type = v.get("violation_type", "REDACTED")
+        redacted = f"[REDACTED: {v_type}]"
+        page_replacements[page_num].append((matched, redacted))
+
+    # Build the resolved PDF — only the clean redacted content
+    pdf = FPDF()
+    pdf.set_auto_page_break(auto=True, margin=15)
+
+    for page_num in sorted(extracted_pages.keys()):
+        pdf.add_page()
+        pdf.set_font("Helvetica", size=11)
+
+        text = extracted_pages.get(page_num, "")
+
+        # Apply replacements: longest match first to avoid partial leftovers
+        if page_num in page_replacements:
+            # Sort by length of original text (longest first)
+            sorted_replacements = sorted(page_replacements[page_num], key=lambda x: len(x[0]), reverse=True)
+            for original, redacted in sorted_replacements:
+                if original in text:
+                    text = text.replace(original, redacted)
+                else:
+                    # If exact match not found, try to find and redact the
+                    # full sentence containing the matched snippet
+                    for sentence in re.split(r'(?<=[.!?])\s+', text):
+                        if original[:40] in sentence:
+                            text = text.replace(sentence, redacted)
+                            break
+
+        # Write text (handle encoding)
+        safe_text = text.encode("latin-1", errors="replace").decode("latin-1")
+        pdf.multi_cell(0, 7, safe_text)
+
+    return bytes(pdf.output())
+
+
+def _render_all_violations(violations: list[dict], result: dict | None = None) -> None:
+    """Render all violations with search, filter, AI resolution, and resolved PDF download."""
     st.markdown(f"**Total:** {len(violations)} violation(s)")
+
+    # === AI Auto-Resolve All + Download Resolved PDF ===
+    st.markdown("---")
+    action_col1, action_col2 = st.columns(2)
+
+    with action_col1:
+        if st.button("🤖 AI Auto-Resolve All Violations", use_container_width=True, type="primary"):
+            with st.spinner("AI is generating resolutions for all violations..."):
+                ai_resolutions = {}
+                progress = st.progress(0, text="Resolving violations...")
+                for i, v in enumerate(violations):
+                    ai_resolutions[i] = _ai_generate_resolution(v)
+                    progress.progress((i + 1) / len(violations), text=f"Resolved {i+1}/{len(violations)}...")
+                st.session_state["ai_resolutions"] = ai_resolutions
+                progress.progress(1.0, text="All violations resolved!")
+                st.success(f"✅ AI generated resolutions for all {len(violations)} violations!")
+                st.rerun()
+
+    with action_col2:
+        if st.session_state.get("ai_resolutions") and result:
+            with st.spinner("Generating resolved PDF..."):
+                pdf_bytes = _generate_resolved_pdf(result, st.session_state["ai_resolutions"])
+            st.download_button(
+                "📥 Download Resolved PDF (100% Compliant)",
+                data=pdf_bytes,
+                file_name="Resolved_Compliant_Document.pdf",
+                mime="application/pdf",
+                use_container_width=True,
+                type="secondary",
+            )
+        else:
+            st.button("📥 Download Resolved PDF", disabled=True, use_container_width=True,
+                      help="Click 'AI Auto-Resolve All' first to generate resolutions.")
+
+    st.markdown("---")
 
     # Filters
     col_f1, col_f2, col_f3 = st.columns(3)
@@ -263,11 +390,27 @@ def _render_all_violations(violations: list[dict]) -> None:
     st.markdown(f"**Showing:** {len(filtered)} of {len(violations)} violations")
 
     rag_service = get_rag_service()
+    ai_resolutions = st.session_state.get("ai_resolutions", {})
 
     for idx, v in enumerate(filtered):
         render_violation_card(v)
-        
+
         with st.expander("🛠️ Remediation / Resolution Action"):
+            # --- AI Resolution Display ---
+            if idx in ai_resolutions:
+                st.markdown("**🤖 AI-Generated Resolution:**")
+                st.success(ai_resolutions[idx])
+            else:
+                if st.button(f"🤖 Generate AI Resolution", key=f"ai_res_{idx}"):
+                    with st.spinner("AI is thinking..."):
+                        resolution = _ai_generate_resolution(v)
+                        if "ai_resolutions" not in st.session_state:
+                            st.session_state["ai_resolutions"] = {}
+                        st.session_state["ai_resolutions"][idx] = resolution
+                        st.rerun()
+
+            st.divider()
+
             # Display past remediations if available
             v_type = v.get("violation_type", "")
             past_docs = rag_service.query_remediations(v_type, k=2)
@@ -279,14 +422,15 @@ def _render_all_violations(violations: list[dict]) -> None:
                 st.caption("No historical resolutions found for this violation type.")
 
             st.divider()
-            
+
             # Form to add new remediation
             with st.form(key=f"rem_form_{idx}"):
-                resolution = st.text_area("Enter resolution taken for this violation:")
+                resolution = st.text_area("Enter resolution taken for this violation:",
+                                          value=ai_resolutions.get(idx, ""))
                 if st.form_submit_button("Mark Resolved & Save to Knowledge Base"):
                     if resolution.strip():
                         rag_service.add_remediation(v_type, v.get("matched_text", "")[:100], resolution)
-                        
+
                         db = Database()
                         db.save_remediation_metadata(str(uuid.uuid4()), v_type, v.get("matched_text", "")[:100], resolution)
                         st.success("Resolution saved! Future scans will use this as historical context.")

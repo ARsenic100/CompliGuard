@@ -119,6 +119,9 @@ def get_custom_css() -> str:
             border-radius: 20px;
             background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
         }
+        .score-display, .score-display * {
+            color: #333 !important;
+        }
         .score-value {
             font-size: 4rem;
             font-weight: 700;
@@ -126,7 +129,7 @@ def get_custom_css() -> str:
         }
         .score-label {
             font-size: 1rem;
-            color: #666;
+            color: #666 !important;
             margin-top: 8px;
         }
 
@@ -137,6 +140,13 @@ def get_custom_css() -> str:
             margin: 8px 0;
             border-radius: 0 8px 8px 0;
             background: #fafafa;
+        }
+        .violation-card, .violation-card * {
+            color: #333 !important;
+        }
+        .violation-card code {
+            color: #c62828 !important;
+            background: rgba(0,0,0,0.06) !important;
         }
         .violation-card.critical { border-color: #FF1744; background: #fff5f5; }
         .violation-card.high { border-color: #FF6D00; background: #fff8f0; }
