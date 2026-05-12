@@ -27,6 +27,7 @@ data/uploads/*
 data/reports/*
 data/logs/*
 data/compliance_scanner.db
+data/chroma_db/
 !data/uploads/.gitkeep
 !data/reports/.gitkeep
 !data/logs/.gitkeep
