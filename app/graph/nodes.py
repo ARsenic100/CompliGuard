@@ -24,6 +24,7 @@ from app.graph.state import ScanState
 from app.models.schemas import ViolationCategory
 from app.services.pdf_service import PDFService, PDFServiceError
 from app.services.report_service import ReportService
+from app.services.rag_service import get_rag_service
 from app.storage.database import Database
 from app.storage.rules_store import RulesStore
 from app.utils.helpers import calculate_compliance_score, get_compliance_status
@@ -139,6 +140,71 @@ def load_rules_node(state: ScanState) -> dict[str, Any]:
         }
 
 
+def embed_document_node(state: ScanState) -> dict[str, Any]:
+    """Node: Embed the document text using RAG service."""
+    logger.info("▶ Node: embed_document")
+    try:
+        rag_service = get_rag_service()
+        scan_id = state.get("scan_id", str(uuid.uuid4()))
+        extracted_pages = state.get("extracted_pages", {})
+        
+        collection_name = rag_service.embed_document(scan_id, extracted_pages)
+        
+        return {
+            "vector_collection_name": collection_name,
+            "logs": ["🧠 Embedding document for semantic search...", f"✅ Document embedded: {collection_name}"],
+            "errors": [],
+            "current_step": "embed_document",
+            "progress": 35.0,
+        }
+    except Exception as e:
+        logger.error(f"Error embedding document: {e}")
+        return {
+            "vector_collection_name": "",
+            "logs": ["🧠 Embedding document for semantic search...", f"⚠️ Error embedding document: {e}"],
+            "errors": [f"Embedding failed: {e}"],
+            "current_step": "embed_document_error",
+            "progress": 35.0,
+        }
+
+def retrieve_context_node(state: ScanState) -> dict[str, Any]:
+    """Node: Retrieve relevant corporate policies and historical remediations."""
+    logger.info("▶ Node: retrieve_context")
+    try:
+        rag_service = get_rag_service()
+        
+        # In a real scenario, we might use document title or extracted keywords to search policies.
+        # For this node, we just fetch general recent policies or use an empty query to get broad context.
+        # A more advanced RAG would query specific sections, but we'll load top policies here.
+        docs = rag_service.query_policies("compliance requirements", k=3)
+        policy_chunks = [doc.page_content for doc in docs]
+        
+        # For historical context, we'll fetch general remediations to inform the agents.
+        rem_docs = rag_service.query_remediations("violation", k=3)
+        historical_context = [doc.page_content for doc in rem_docs]
+        
+        return {
+            "relevant_policy_chunks": policy_chunks,
+            "historical_context": historical_context,
+            "logs": [
+                "🔍 Retrieving custom corporate policies and past remediations...",
+                f"✅ Found {len(policy_chunks)} relevant policy rules and {len(historical_context)} historical resolutions."
+            ],
+            "errors": [],
+            "current_step": "retrieve_context",
+            "progress": 40.0,
+        }
+    except Exception as e:
+        logger.error(f"Error retrieving context: {e}")
+        return {
+            "relevant_policy_chunks": [],
+            "historical_context": [],
+            "logs": ["🔍 Retrieving custom corporate policies and past remediations...", f"⚠️ Error retrieving context: {e}"],
+            "errors": [],
+            "current_step": "retrieve_context",
+            "progress": 40.0,
+        }
+
 def pii_detection_node(state: ScanState) -> dict[str, Any]:
     """Node: Run PII detection on all pages."""
     logger.info("▶ Node: pii_detection")
@@ -146,11 +212,23 @@ def pii_detection_node(state: ScanState) -> dict[str, Any]:
     detector = PIIDetector()
     extracted_pages = state.get("extracted_pages", {})
     rules = [r for r in state.get("rule_config", []) if r.get("category") == ViolationCategory.PII.value]
+    
+    # Build RAG context string
+    rag_context = ""
+    policies = state.get("relevant_policy_chunks", [])
+    history = state.get("historical_context", [])
+    if policies or history:
+        rag_context = "EXTERNAL CORPORATE CONTEXT:\n"
+        for p in policies:
+            rag_context += f"- {p}\n"
+        rag_context += "\nHISTORICAL REMEDIATION CONTEXT:\n"
+        for h in history:
+            rag_context += f"- {h}\n"
 
     all_violations: list[dict[str, Any]] = []
     for page_num, text in extracted_pages.items():
         if text.strip():
-            violations = detector.detect(text, page_num, rules)
+            violations = detector.detect(text, page_number=page_num, rules=rules, rag_context=rag_context)
             all_violations.extend(violations)
 
     return {
@@ -171,10 +249,21 @@ def confidential_detection_node(state: ScanState) -> dict[str, Any]:
     extracted_pages = state.get("extracted_pages", {})
     rules = [r for r in state.get("rule_config", []) if r.get("category") == ViolationCategory.CONFIDENTIAL.value]
 
+    rag_context = ""
+    policies = state.get("relevant_policy_chunks", [])
+    history = state.get("historical_context", [])
+    if policies or history:
+        rag_context = "EXTERNAL CORPORATE CONTEXT:\n"
+        for p in policies:
+            rag_context += f"- {p}\n"
+        rag_context += "\nHISTORICAL REMEDIATION CONTEXT:\n"
+        for h in history:
+            rag_context += f"- {h}\n"
+
     all_violations: list[dict[str, Any]] = []
     for page_num, text in extracted_pages.items():
         if text.strip():
-            violations = detector.detect(text, page_num, rules)
+            violations = detector.detect(text, page_number=page_num, rules=rules, rag_context=rag_context)
             all_violations.extend(violations)
 
     return {
@@ -216,10 +305,21 @@ def toxicity_detection_node(state: ScanState) -> dict[str, Any]:
     detector = ToxicityDetector()
     extracted_pages = state.get("extracted_pages", {})
 
+    rag_context = ""
+    policies = state.get("relevant_policy_chunks", [])
+    history = state.get("historical_context", [])
+    if policies or history:
+        rag_context = "EXTERNAL CORPORATE CONTEXT:\n"
+        for p in policies:
+            rag_context += f"- {p}\n"
+        rag_context += "\nHISTORICAL REMEDIATION CONTEXT:\n"
+        for h in history:
+            rag_context += f"- {h}\n"
+
     all_violations: list[dict[str, Any]] = []
     for page_num, text in extracted_pages.items():
         if text.strip():
-            violations = detector.detect(text, page_num)
+            violations = detector.detect(text, page_number=page_num, rag_context=rag_context)
             all_violations.extend(violations)
 
     return {

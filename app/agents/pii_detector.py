@@ -91,6 +91,7 @@ class PIIDetector:
         text: str,
         page_number: int,
         rules: list[dict[str, Any]] | None = None,
+        rag_context: str = "",
     ) -> list[dict[str, Any]]:
         """
         Detect PII in text using hybrid regex + LLM approach.
@@ -99,6 +100,7 @@ class PIIDetector:
             text: Text content to analyze.
             page_number: Page number for reference.
             rules: Optional list of custom PII rules with patterns.
+            rag_context: Optional context from RAG.
 
         Returns:
             List of violation dicts.
@@ -113,7 +115,7 @@ class PIIDetector:
         violations.extend(regex_violations)
 
         # Step 2: LLM-based detection for contextual PII
-        llm_violations = self._detect_with_llm(text, page_number)
+        llm_violations = self._detect_with_llm(text, page_number, rag_context)
         violations.extend(llm_violations)
 
         # Step 3: Deduplicate
@@ -186,13 +188,14 @@ class PIIDetector:
 
         return violations
 
-    def _detect_with_llm(self, text: str, page_number: int) -> list[dict[str, Any]]:
+    def _detect_with_llm(self, text: str, page_number: int, rag_context: str = "") -> list[dict[str, Any]]:
         """
         Detect PII using LLM contextual analysis.
 
         Args:
             text: Text to analyze.
             page_number: Page number.
+            rag_context: Context string from RAG.
 
         Returns:
             List of LLM-detected violation dicts.
@@ -208,6 +211,7 @@ class PIIDetector:
             prompt = PII_ANALYSIS_PROMPT.format(
                 page_number=page_number,
                 text=analysis_text,
+                rag_context=rag_context,
             )
             result = self.llm_service.analyze(PII_SYSTEM_PROMPT, prompt, expect_json=True)
 

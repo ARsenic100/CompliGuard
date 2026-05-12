@@ -39,6 +39,8 @@ TEXT CONTENT:
 {text}
 ---
 
+{rag_context}
+
 If PII is found, respond with this JSON format:
 {{
     "violations_found": true,
@@ -94,6 +96,8 @@ TEXT CONTENT:
 ---
 {text}
 ---
+
+{rag_context}
 
 If confidential information is found, respond with this JSON format:
 {{
@@ -151,6 +155,8 @@ TEXT CONTENT:
 ---
 {text}
 ---
+
+{rag_context}
 
 If toxic/abusive content is found, respond with this JSON format:
 {{

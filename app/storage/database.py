@@ -62,6 +62,23 @@ class Database:
                     updated_at TEXT
                 )
             """)
+            conn.execute("""
+                CREATE TABLE IF NOT EXISTS corporate_policies (
+                    id TEXT PRIMARY KEY,
+                    policy_name TEXT NOT NULL,
+                    upload_date TEXT NOT NULL,
+                    chunk_count INTEGER DEFAULT 0
+                )
+            """)
+            conn.execute("""
+                CREATE TABLE IF NOT EXISTS historical_remediations (
+                    id TEXT PRIMARY KEY,
+                    violation_type TEXT NOT NULL,
+                    violation_text TEXT NOT NULL,
+                    resolution TEXT NOT NULL,
+                    created_at TEXT NOT NULL
+                )
+            """)
             conn.commit()
             logger.info("Database initialized")
         except Exception as e:
@@ -201,5 +218,57 @@ class Database:
         except Exception as e:
             logger.error(f"Error deleting rule: {e}")
             return False
+        finally:
+            conn.close()
+
+    # --- RAG Metadata ---
+    
+    def save_policy_metadata(self, policy_id: str, policy_name: str, chunk_count: int) -> None:
+        conn = self._get_conn()
+        from datetime import datetime
+        try:
+            conn.execute(
+                "INSERT INTO corporate_policies (id, policy_name, upload_date, chunk_count) VALUES (?, ?, ?, ?)",
+                (policy_id, policy_name, datetime.now().isoformat(), chunk_count)
+            )
+            conn.commit()
+        except Exception as e:
+            logger.error(f"Error saving policy metadata: {e}")
+        finally:
+            conn.close()
+
+    def get_policies(self) -> list[dict[str, Any]]:
+        conn = self._get_conn()
+        try:
+            cursor = conn.execute("SELECT * FROM corporate_policies ORDER BY upload_date DESC")
+            return [dict(row) for row in cursor.fetchall()]
+        except Exception as e:
+            logger.error(f"Error fetching policies: {e}")
+            return []
+        finally:
+            conn.close()
+
+    def save_remediation_metadata(self, remediation_id: str, violation_type: str, violation_text: str, resolution: str) -> None:
+        conn = self._get_conn()
+        from datetime import datetime
+        try:
+            conn.execute(
+                "INSERT INTO historical_remediations (id, violation_type, violation_text, resolution, created_at) VALUES (?, ?, ?, ?, ?)",
+                (remediation_id, violation_type, violation_text, resolution, datetime.now().isoformat())
+            )
+            conn.commit()
+        except Exception as e:
+            logger.error(f"Error saving remediation metadata: {e}")
+        finally:
+            conn.close()
+
+    def get_remediations(self) -> list[dict[str, Any]]:
+        conn = self._get_conn()
+        try:
+            cursor = conn.execute("SELECT * FROM historical_remediations ORDER BY created_at DESC")
+            return [dict(row) for row in cursor.fetchall()]
+        except Exception as e:
+            logger.error(f"Error fetching remediations: {e}")
+            return []
         finally:
             conn.close()

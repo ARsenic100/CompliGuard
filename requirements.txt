@@ -35,3 +35,9 @@ pytest-cov>=5.0.0
 
 # --- PDF Generation (for sample PDFs) ---
 fpdf2>=2.7.0
+
+# --- RAG Features ---
+chromadb>=0.4.0
+langchain-chroma>=0.1.0
+langchain-huggingface>=0.0.3
+sentence-transformers>=2.0.0

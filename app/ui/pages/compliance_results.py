@@ -25,6 +25,9 @@ from app.utils.helpers import (
     count_violations_by_severity,
     get_category_icon,
 )
+from app.services.rag_service import get_rag_service
+from app.storage.database import Database
+import uuid
 
 
 def render_compliance_results_page() -> None:
@@ -139,7 +142,6 @@ def _render_charts(violations: list[dict], summary: dict, page_results: list[dic
                 orientation="h",
                 marker=dict(
                     color=["#667eea", "#764ba2", "#f093fb", "#f5576c"],
-                    cornerradius=8,
                 ),
             )])
             fig.update_layout(
@@ -162,7 +164,6 @@ def _render_charts(violations: list[dict], summary: dict, page_results: list[dic
                 marker=dict(
                     color=violation_counts,
                     colorscale="Reds",
-                    cornerradius=4,
                 ),
             ))
             fig.update_layout(
@@ -261,5 +262,33 @@ def _render_all_violations(violations: list[dict]) -> None:
 
     st.markdown(f"**Showing:** {len(filtered)} of {len(violations)} violations")
 
-    for v in filtered:
+    rag_service = get_rag_service()
+
+    for idx, v in enumerate(filtered):
         render_violation_card(v)
+        
+        with st.expander("🛠️ Remediation / Resolution Action"):
+            # Display past remediations if available
+            v_type = v.get("violation_type", "")
+            past_docs = rag_service.query_remediations(v_type, k=2)
+            if past_docs:
+                st.markdown("**📚 Historical Context (Similar Past Resolutions):**")
+                for doc in past_docs:
+                    st.info(doc.page_content)
+            else:
+                st.caption("No historical resolutions found for this violation type.")
+
+            st.divider()
+            
+            # Form to add new remediation
+            with st.form(key=f"rem_form_{idx}"):
+                resolution = st.text_area("Enter resolution taken for this violation:")
+                if st.form_submit_button("Mark Resolved & Save to Knowledge Base"):
+                    if resolution.strip():
+                        rag_service.add_remediation(v_type, v.get("matched_text", "")[:100], resolution)
+                        
+                        db = Database()
+                        db.save_remediation_metadata(str(uuid.uuid4()), v_type, v.get("matched_text", "")[:100], resolution)
+                        st.success("Resolution saved! Future scans will use this as historical context.")
+                    else:
+                        st.error("Please enter a resolution.")
