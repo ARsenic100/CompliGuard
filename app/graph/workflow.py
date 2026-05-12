@@ -19,6 +19,8 @@ from app.graph.nodes import (
     confidential_detection_node,
     encoding_validation_node,
     extract_text_node,
+    embed_document_node,
+    retrieve_context_node,
     generate_report_node,
     load_rules_node,
     pii_detection_node,
@@ -51,7 +53,9 @@ def build_compliance_graph() -> StateGraph:
     # --- Add Nodes ---
     graph.add_node("validate_pdf", validate_pdf_node)
     graph.add_node("extract_text", extract_text_node)
+    graph.add_node("embed_document", embed_document_node)
     graph.add_node("load_rules", load_rules_node)
+    graph.add_node("retrieve_context", retrieve_context_node)
     graph.add_node("pii_detection", pii_detection_node)
     graph.add_node("confidential_detection", confidential_detection_node)
     graph.add_node("encoding_validation", encoding_validation_node)
@@ -74,14 +78,16 @@ def build_compliance_graph() -> StateGraph:
         },
     )
 
-    # Sequential flow: extract → load rules
-    graph.add_edge("extract_text", "load_rules")
+    # Sequential flow: extract → embed → load rules → retrieve context
+    graph.add_edge("extract_text", "embed_document")
+    graph.add_edge("embed_document", "load_rules")
+    graph.add_edge("load_rules", "retrieve_context")
 
-    # Fan-out: rules → all 4 detection agents
-    graph.add_edge("load_rules", "pii_detection")
-    graph.add_edge("load_rules", "confidential_detection")
-    graph.add_edge("load_rules", "encoding_validation")
-    graph.add_edge("load_rules", "toxicity_detection")
+    # Fan-out: context → all 4 detection agents
+    graph.add_edge("retrieve_context", "pii_detection")
+    graph.add_edge("retrieve_context", "confidential_detection")
+    graph.add_edge("retrieve_context", "encoding_validation")
+    graph.add_edge("retrieve_context", "toxicity_detection")
 
     # Fan-in: all 4 agents → aggregate
     graph.add_edge("pii_detection", "aggregate_results")

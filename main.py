@@ -15,6 +15,8 @@ from app.ui.pages.compliance_results import render_compliance_results_page
 from app.ui.pages.rules_management import render_rules_management_page
 from app.ui.pages.scan_history import render_scan_history_page
 from app.ui.pages.upload_scan import render_upload_scan_page
+from app.ui.pages.chat_document import render_chat_document_page
+from app.ui.pages.corporate_policies import render_corporate_policies_page
 from app.ui.theme import get_custom_css
 
 
@@ -75,6 +77,8 @@ def main() -> None:
             [
                 "📤 Upload & Scan",
                 "📊 Compliance Results",
+                "💬 Chat with Document",
+                "🏢 Corporate Policies",
                 "⚙️ Rules Management",
                 "📜 Scan History",
             ],
@@ -121,6 +125,10 @@ def main() -> None:
         render_upload_scan_page()
     elif page == "📊 Compliance Results":
         render_compliance_results_page()
+    elif page == "💬 Chat with Document":
+        render_chat_document_page()
+    elif page == "🏢 Corporate Policies":
+        render_corporate_policies_page()
     elif page == "⚙️ Rules Management":
         render_rules_management_page()
     elif page == "📜 Scan History":

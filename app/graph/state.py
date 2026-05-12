@@ -37,6 +37,11 @@ class ScanState(TypedDict, total=False):
     # --- Rule Configuration ---
     rule_config: list[dict[str, Any]]
 
+    # --- RAG Context ---
+    vector_collection_name: str
+    relevant_policy_chunks: list[str]
+    historical_context: list[str]
+
     # --- Per-Check Results (written by parallel agents) ---
     pii_results: Annotated[list[dict[str, Any]], operator.add]
     confidential_results: Annotated[list[dict[str, Any]], operator.add]

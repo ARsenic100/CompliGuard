@@ -58,12 +58,12 @@ class ConfidentialDetector:
         self.llm_service = get_llm_service()
         logger.info("Confidential Detector initialized")
 
-    def detect(self, text: str, page_number: int, rules: list[dict[str, Any]] | None = None) -> list[dict[str, Any]]:
+    def detect(self, text: str, page_number: int, rules: list[dict[str, Any]] | None = None, rag_context: str = "") -> list[dict[str, Any]]:
         if not text.strip():
             return []
         violations: list[dict[str, Any]] = []
         violations.extend(self._detect_with_keywords(text, page_number))
-        violations.extend(self._detect_with_llm(text, page_number))
+        violations.extend(self._detect_with_llm(text, page_number, rag_context))
         if rules:
             violations.extend(self._apply_custom_rules(text, page_number, rules))
         violations = self._deduplicate(violations)
@@ -93,12 +93,12 @@ class ConfidentialDetector:
                     logger.warning(f"Regex error for {conf_type}: {e}")
         return violations
 
-    def _detect_with_llm(self, text: str, page_number: int) -> list[dict[str, Any]]:
+    def _detect_with_llm(self, text: str, page_number: int, rag_context: str = "") -> list[dict[str, Any]]:
         if not self.llm_service.is_available:
             return []
         analysis_text = text[:4000] if len(text) > 4000 else text
         try:
-            prompt = CONFIDENTIAL_ANALYSIS_PROMPT.format(page_number=page_number, text=analysis_text)
+            prompt = CONFIDENTIAL_ANALYSIS_PROMPT.format(page_number=page_number, text=analysis_text, rag_context=rag_context)
             result = self.llm_service.analyze(CONFIDENTIAL_SYSTEM_PROMPT, prompt, expect_json=True)
             if not isinstance(result, dict) or not result.get("violations_found", False):
                 return []

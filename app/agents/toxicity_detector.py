@@ -33,7 +33,7 @@ class ToxicityDetector:
         self.llm_service = get_llm_service()
         logger.info("Toxicity Detector initialized")
 
-    def detect(self, text: str, page_number: int, rules: list[dict[str, Any]] | None = None) -> list[dict[str, Any]]:
+    def detect(self, text: str, page_number: int, rules: list[dict[str, Any]] | None = None, rag_context: str = "") -> list[dict[str, Any]]:
         """Detect abusive/unlawful content in text."""
         if not text.strip():
             return []
@@ -43,12 +43,12 @@ class ToxicityDetector:
 
         violations: list[dict[str, Any]] = []
         if has_potential_toxicity:
-            llm_violations = self._detect_with_llm(text, page_number)
+            llm_violations = self._detect_with_llm(text, page_number, rag_context)
             violations.extend(llm_violations)
         else:
             # Still run LLM for subtle/contextual toxicity on shorter texts
             if len(text) < 2000:
-                llm_violations = self._detect_with_llm(text, page_number)
+                llm_violations = self._detect_with_llm(text, page_number, rag_context)
                 violations.extend(llm_violations)
 
         logger.info(f"Page {page_number}: Found {len(violations)} toxicity violations")
@@ -62,7 +62,7 @@ class ToxicityDetector:
                 return True
         return False
 
-    def _detect_with_llm(self, text: str, page_number: int) -> list[dict[str, Any]]:
+    def _detect_with_llm(self, text: str, page_number: int, rag_context: str = "") -> list[dict[str, Any]]:
         """Detect toxic content using LLM moderation prompt."""
         if not self.llm_service.is_available:
             return []
@@ -70,7 +70,7 @@ class ToxicityDetector:
         analysis_text = text[:4000] if len(text) > 4000 else text
 
         try:
-            prompt = TOXICITY_ANALYSIS_PROMPT.format(page_number=page_number, text=analysis_text)
+            prompt = TOXICITY_ANALYSIS_PROMPT.format(page_number=page_number, text=analysis_text, rag_context=rag_context)
             result = self.llm_service.analyze(TOXICITY_SYSTEM_PROMPT, prompt, expect_json=True)
 
             if not isinstance(result, dict) or not result.get("violations_found", False):
