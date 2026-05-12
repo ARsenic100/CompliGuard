@@ -124,6 +124,23 @@ class RAGService:
         """Search corporate policies for context."""
         return self.policies_store.similarity_search(query, k=k)
 
+    def delete_corporate_policy(self, policy_name: str) -> bool:
+        """Remove all vector embeddings for a specific policy."""
+        try:
+            # Access the underlying ChromaDB collection to delete by metadata filter
+            collection = self.policies_store._collection
+            # Get IDs of documents matching this policy name
+            results = collection.get(where={"policy_name": policy_name})
+            if results and results["ids"]:
+                collection.delete(ids=results["ids"])
+                logger.info(f"Deleted {len(results['ids'])} embeddings for policy: {policy_name}")
+                return True
+            logger.warning(f"No embeddings found for policy: {policy_name}")
+            return True  # Still return True — nothing to delete is fine
+        except Exception as e:
+            logger.error(f"Error deleting policy embeddings for {policy_name}: {e}")
+            return False
+
     # --- Historical Remediations RAG ---
 
     def add_remediation(self, violation_type: str, violation_text: str, resolution: str) -> None:

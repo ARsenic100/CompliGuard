@@ -61,7 +61,15 @@ def render_corporate_policies_page() -> None:
     else:
         for p in policies:
             with st.container(border=True):
-                cols = st.columns([3, 1, 1])
+                cols = st.columns([3, 1, 1, 1])
                 cols[0].markdown(f"**{p['policy_name']}**")
                 cols[1].markdown(f"Chunks: `{p['chunk_count']}`")
                 cols[2].caption(p['upload_date'][:10])
+                policy_name = p['policy_name']
+                if cols[3].button("🗑️ Delete", key=f"del_{p['id']}", type="primary"):
+                    with st.spinner(f"Deleting '{policy_name}'..."):
+                        rag_service = get_rag_service()
+                        rag_service.delete_corporate_policy(policy_name)
+                        db.delete_policy(policy_name)
+                        st.success(f"Deleted '{policy_name}' and its embeddings.")
+                        st.rerun()

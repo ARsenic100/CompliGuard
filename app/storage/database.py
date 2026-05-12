@@ -248,6 +248,20 @@ class Database:
         finally:
             conn.close()
 
+    def delete_policy(self, policy_name: str) -> bool:
+        """Delete a corporate policy by name."""
+        conn = self._get_conn()
+        try:
+            conn.execute("DELETE FROM corporate_policies WHERE policy_name = ?", (policy_name,))
+            conn.commit()
+            logger.info(f"Deleted policy metadata: {policy_name}")
+            return True
+        except Exception as e:
+            logger.error(f"Error deleting policy: {e}")
+            return False
+        finally:
+            conn.close()
+
     def save_remediation_metadata(self, remediation_id: str, violation_type: str, violation_text: str, resolution: str) -> None:
         conn = self._get_conn()
         from datetime import datetime
