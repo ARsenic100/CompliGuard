@@ -7,6 +7,7 @@ Manages vector embeddings and retrieval using ChromaDB and local HuggingFace mod
 from __future__ import annotations
 
 import os
+import shutil
 from typing import Any
 
 from langchain_chroma import Chroma
@@ -18,9 +19,33 @@ from app.utils.logger import get_logger
 
 logger = get_logger(__name__)
 
-# Directory for Chroma persistent storage
-CHROMA_DB_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), "data", "chroma_db")
+# Use /tmp on Streamlit Cloud (project dir is read-only), local data dir otherwise
+_IS_CLOUD = os.path.exists("/mount/src")
+if _IS_CLOUD:
+    CHROMA_DB_DIR = "/tmp/chroma_db"
+else:
+    CHROMA_DB_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), "data", "chroma_db")
 os.makedirs(CHROMA_DB_DIR, exist_ok=True)
+
+
+def _safe_create_chroma(collection_name: str, embeddings, persist_dir: str) -> Chroma:
+    """Create a Chroma store, clearing stale data if it's corrupt."""
+    try:
+        return Chroma(
+            collection_name=collection_name,
+            embedding_function=embeddings,
+            persist_directory=persist_dir,
+        )
+    except Exception as e:
+        logger.warning(f"ChromaDB init failed ({e}), resetting {persist_dir}...")
+        shutil.rmtree(persist_dir, ignore_errors=True)
+        os.makedirs(persist_dir, exist_ok=True)
+        return Chroma(
+            collection_name=collection_name,
+            embedding_function=embeddings,
+            persist_directory=persist_dir,
+        )
+
 
 class RAGService:
     """Service for managing vector database operations."""
@@ -28,27 +53,17 @@ class RAGService:
     def __init__(self) -> None:
         """Initialize the RAG service with local embeddings."""
         logger.info("Initializing RAG Service (Embeddings and Vector DB)...")
-        # Use a lightweight, fast local embedding model
         self.embeddings = HuggingFaceEmbeddings(model_name="all-MiniLM-L6-v2")
-        
+
         self.text_splitter = RecursiveCharacterTextSplitter(
             chunk_size=1000,
             chunk_overlap=200,
             separators=["\n\n", "\n", ".", " ", ""]
         )
-        
-        # Initialize global collections
-        self.policies_store = Chroma(
-            collection_name="corporate_policies",
-            embedding_function=self.embeddings,
-            persist_directory=CHROMA_DB_DIR
-        )
-        
-        self.remediations_store = Chroma(
-            collection_name="historical_remediations",
-            embedding_function=self.embeddings,
-            persist_directory=CHROMA_DB_DIR
-        )
+
+        # Initialize global collections with safe fallback
+        self.policies_store = _safe_create_chroma("corporate_policies", self.embeddings, CHROMA_DB_DIR)
+        self.remediations_store = _safe_create_chroma("historical_remediations", self.embeddings, CHROMA_DB_DIR)
 
     # --- Document RAG (For specific scans) ---
 
