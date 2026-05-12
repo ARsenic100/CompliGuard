@@ -1,0 +1,114 @@
+[
+  {
+    "id": "pii_001",
+    "rule_name": "Email Address Detection",
+    "category": "PII / Personal Information",
+    "enabled": true,
+    "severity": "High",
+    "description": "Detect email addresses in document text",
+    "pattern": "[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\\.[A-Z|a-z]{2,}",
+    "keywords": [],
+    "created_at": "2026-05-12T12:58:36.058739",
+    "updated_at": "2026-05-12T12:58:36.058743"
+  },
+  {
+    "id": "pii_002",
+    "rule_name": "Phone Number Detection",
+    "category": "PII / Personal Information",
+    "enabled": true,
+    "severity": "High",
+    "description": "Detect phone numbers in various formats",
+    "pattern": "(?:\\+?\\d{1,3}[\\s-]?)?\\(?\\d{2,4}\\)?[\\s-]?\\d{3,4}[\\s-]?\\d{3,4}",
+    "keywords": [],
+    "created_at": "2026-05-12T12:58:36.058745",
+    "updated_at": "2026-05-12T12:58:36.058746"
+  },
+  {
+    "id": "pii_003",
+    "rule_name": "Aadhaar Number Detection",
+    "category": "PII / Personal Information",
+    "enabled": true,
+    "severity": "Critical",
+    "description": "Detect 12-digit Aadhaar-like numbers",
+    "pattern": "\\d{4}[\\s-]?\\d{4}[\\s-]?\\d{4}",
+    "keywords": [],
+    "created_at": "2026-05-12T12:58:36.058748",
+    "updated_at": "2026-05-12T12:58:36.058749"
+  },
+  {
+    "id": "conf_001",
+    "rule_name": "Detect API Keys",
+    "category": "Confidential Information",
+    "enabled": true,
+    "severity": "Critical",
+    "description": "Detect API keys and access tokens",
+    "pattern": "(?:api[_\\-]?key|access[_\\-]?token)\\s*[=:]\\s*[\\w\\-]{20,}",
+    "keywords": [
+      "api_key",
+      "secret_key",
+      "access_token"
+    ],
+    "created_at": "2026-05-12T12:58:36.058751",
+    "updated_at": "2026-05-12T12:58:36.058752"
+  },
+  {
+    "id": "conf_002",
+    "rule_name": "Confidential Markings",
+    "category": "Confidential Information",
+    "enabled": true,
+    "severity": "High",
+    "description": "Detect confidential document markings",
+    "pattern": "\\b(?:CONFIDENTIAL|STRICTLY CONFIDENTIAL|TOP SECRET|PROPRIETARY)\\b",
+    "keywords": [
+      "confidential",
+      "proprietary",
+      "trade secret"
+    ],
+    "created_at": "2026-05-12T12:58:36.058754",
+    "updated_at": "2026-05-12T12:58:36.058755"
+  },
+  {
+    "id": "conf_003",
+    "rule_name": "Password Detection",
+    "category": "Confidential Information",
+    "enabled": true,
+    "severity": "Critical",
+    "description": "Detect passwords and secrets in plain text",
+    "pattern": "(?:password|passwd|pwd|secret)\\s*[=:]\\s*[^\\s]{4,}",
+    "keywords": [
+      "password",
+      "secret",
+      "credential"
+    ],
+    "created_at": "2026-05-12T12:58:36.058756",
+    "updated_at": "2026-05-12T12:58:36.058757"
+  },
+  {
+    "id": "tox_001",
+    "rule_name": "Hate Speech Detection",
+    "category": "Abusive / Unlawful Content",
+    "enabled": true,
+    "severity": "Critical",
+    "description": "Detect hate speech and discriminatory language",
+    "pattern": null,
+    "keywords": [
+      "hate",
+      "racist",
+      "discrimination"
+    ],
+    "created_at": "2026-05-12T12:58:36.058759",
+    "updated_at": "2026-05-12T12:58:36.058760"
+  },
+  {
+    "id": "enc_001",
+    "rule_name": "Encoding Validation",
+    "category": "Encoding Issue",
+    "enabled": true,
+    "severity": "Medium",
+    "description": "Validate UTF-8 encoding consistency",
+    "pattern": null,
+    "keywords": [],
+    "created_at": "2026-05-12T12:58:36.058763",
+    "updated_at": "2026-05-12T12:58:36.058763"
+  }
+]
