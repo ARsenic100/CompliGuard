@@ -65,8 +65,8 @@
 
 ```bash
 # 1. Clone the repository
-git clone https://github.com/your-username/pdf-compliance-scanner.git
-cd pdf-compliance-scanner
+git clone https://github.com/ARsenic100/CompliGuard.git
+cd CompliGuard
 
 # 2. Create virtual environment
 python -m venv venv
