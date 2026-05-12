@@ -1,8 +1,8 @@
 # 🛡️ CompliGuard
 
-> 🔍 An enterprise-grade AI compliance scanning platform that uses **Generative AI** (GROQ/Llama-3.1-8b) + **rule-based validation** to scan uploaded PDFs for compliance violations, PII, toxicity, and encoding issues.
+> 🔍 An enterprise-grade AI compliance scanning platform that uses **Generative AI** (GROQ/Llama-3.1-8b), **RAG** (ChromaDB), and **rule-based validation** to scan uploaded PDFs for compliance violations, PII, toxicity, encoding issues, and corporate policy alignment.
 
-[![Python 3.10+](https://img.shields.io/badge/Python-3.10%2B-blue.svg)](https://www.python.org)
+[![Python 3.11](https://img.shields.io/badge/Python-3.10%2B-blue.svg)](https://www.python.org)
 [![Streamlit](https://img.shields.io/badge/Streamlit-1.38%2B-FF4B4B.svg)](https://streamlit.io)
 [![LangGraph](https://img.shields.io/badge/LangGraph-0.2%2B-green.svg)](https://github.com/langchain-ai/langgraph)
 [![GROQ](https://img.shields.io/badge/GROQ-API-orange.svg)](https://console.groq.com)
@@ -17,6 +17,8 @@
 - **⚠️ Encoding Validation** — UTF-8 consistency checks for malformed characters, mojibake, and garbled text
 - **🚫 Toxicity Detection** — LLM-based moderation for hate speech, threats, harassment, illegal content
 - **📊 Interactive Dashboard** — Plotly charts, severity distribution, page-wise heatmap, compliance gauge
+- **💬 Chat with Document** — RAG-based chat interface to query the scanned document against corporate policies
+- **🏢 Corporate Policies** — Manage and embed corporate policies for context-aware compliance checking
 - **⚙️ Dynamic Rule Engine** — Add, edit, delete, enable/disable rules through the UI
 - **📜 Scan History** — Persistent scan history with downloadable reports
 - **📥 Report Generation** — JSON and PDF compliance reports with executive summaries
@@ -25,34 +27,38 @@
 ## 🏗️ Architecture
 
 ```
-┌────────────────────────────────────────────────────────────┐
-│                    Streamlit UI                            │
+┌──────────────────────────────────────────────────────────┐
+│                    Streamlit UI                          │
 │  ┌──────────┐ ┌──────────┐ ┌──────────┐ ┌──────────┐     │
-│  │ Upload & │ │ Results  │ │  Rules   │ │  Scan    │     │
-│  │  Scan    │ │Dashboard │ │ Manager  │ │ History  │     │
+│  │ Upload & │ │ Results  │ │ Chat w/  │ │ Corporate│     │
+│  │  Scan    │ │Dashboard │ │ Document │ │ Policies │     │
 │  └────┬─────┘ └────┬─────┘ └────┬─────┘ └────┬─────┘     │
-└───────┼────────────┼────────────┼────────────┼────────────┘
+│  ┌────┴─────┐ ┌────┴─────┐                               │
+│  │  Rules   │ │  Scan    │                               │
+│  │ Manager  │ │ History  │                               │
+│  └──────────┘ └──────────┘                               │
+└───────┬────────────┬────────────┬────────────┬───────────┘
         │            │            │            │
-┌───────▼────────────▼────────────▼────────────▼────────────┐
-│                  LangGraph Workflow                        │
-│  validate → extract → load_rules →                        │
+┌───────▼────────────▼────────────▼────────────▼───────────┐
+│                  LangGraph Workflow                      │
+│  validate → extract → embed → rules → context →          │
 │  ┌──────┐ ┌──────────┐ ┌──────────┐ ┌──────────┐         │
-│  │ PII  │ │Confident.│ │Encoding  │ │Toxicity  │  (||)   │
+│  │ PII  │ │Confident.│ │Encoding  │ │Toxicity  │         │
 │  └──┬───┘ └────┬─────┘ └────┬─────┘ └────┬─────┘         │
-│     └──────────┴────────────┴────────────┘                │
-│                    ↓ aggregate → report → store → END     │
-└───────────────────────────────────────────────────────────┘
-        │                    │                │
-┌───────▼──────┐  ┌─────────▼─────┐  ┌──────▼───────┐
-│   GROQ LLM   │  │   ReportLab   │  │   SQLite DB  │
-│ Llama 3.1 8B │  │  PDF Reports  │  │  Scan History │
-└──────────────┘  └───────────────┘  └──────────────┘
+│     └──────────┴────────────┴────────────┘               │
+│                  ↓ aggregate → report → store → END      │
+└──────────────────────────────────────────────────────────┘
+        │            │            │            │
+┌───────▼────┐ ┌─────▼─────┐ ┌────▼───────┐ ┌──▼────────┐
+│  GROQ LLM  │ │ ReportLab │ │ SQLite DB  │ │ ChromaDB  │
+│Llama 3.1 8B│ │PDF Reports│ │Scan History│ │Vector DB  │
+└────────────┘ └───────────┘ └────────────┘ └───────────┘
 ```
 
 ## 🚀 Quick Start
 
 ### Prerequisites
-- Python 3.10+
+- Python 3.11
 - GROQ API key ([Get one here](https://console.groq.com/keys))
 
 ### Installation
@@ -73,7 +79,9 @@ pip install -r requirements.txt
 cp .env.example .env
 # Edit .env and add your GROQ_API_KEY
 
-# 5. Generate sample PDFs (optional)
+# 5. Generate sample PDFs & Presentation (optional)
+python generate_5page_doc.py
+python generate_mock_pdfs.py
 python -m sample_pdfs.generate_samples
 
 # 6. Run the application
@@ -98,7 +106,7 @@ LOG_LEVEL=INFO
 pdf-compliance-scanner/
 ├── app/
 │   ├── ui/                    # Streamlit pages and components
-│   │   ├── pages/             # 4 main pages
+│   │   ├── pages/             # 6 main pages
 │   │   ├── components.py      # Reusable UI widgets
 │   │   └── theme.py           # CSS styling
 │   ├── graph/                 # LangGraph workflow
@@ -134,15 +142,17 @@ The scanning workflow is orchestrated by a **LangGraph StateGraph**:
 
 1. **validate_pdf** — Validates file format, size, and PDF structure
 2. **extract_text** — Extracts page-wise text using PyMuPDF
-3. **load_rules** — Loads enabled compliance rules from database
-4. **Parallel Fan-out** — 4 detection agents run simultaneously:
+3. **embed_document** — Creates document embeddings using ChromaDB
+4. **load_rules** — Loads enabled compliance rules from database
+5. **retrieve_context** — Retrieves relevant policy chunks and historical remediations for RAG
+6. **Parallel Fan-out** — 4 detection agents run simultaneously:
    - `pii_detection` (regex + LLM hybrid)
    - `confidential_detection` (keyword + LLM semantic)
    - `encoding_validation` (pure Python)
    - `toxicity_detection` (LLM moderation)
-5. **aggregate_results** — Merges all results, calculates compliance score
-6. **generate_report** — Creates JSON and PDF reports
-7. **store_results** — Saves to SQLite database
+7. **aggregate_results** — Merges all results, calculates compliance score
+8. **generate_report** — Creates JSON and PDF reports
+9. **store_results** — Saves to SQLite database
 
 ### Compliance Scoring
 
@@ -175,11 +185,13 @@ pytest tests/ --cov=app --cov-report=html
 
 1. Start the application: `streamlit run main.py`
 2. Navigate to **📤 Upload & Scan**
-3. Upload `sample_pdfs/sample_mixed_violations.pdf`
+3. Upload `sample_pdfs/sample_mixed_violations.pdf` or `5_Page_Violating_Document.pdf`
 4. Click **🚀 Start Scan** and watch the AI analysis
 5. Navigate to **📊 Compliance Results** for detailed charts
-6. Try **⚙️ Rules Management** to add/edit rules
-7. Check **📜 Scan History** for past scans
+6. Go to **🏢 Corporate Policies** and add new policies using the uploaded `Mock_Corporate_Policy.pdf`
+7. Navigate to **💬 Chat with Document** to ask questions about the violations and corporate policies
+8. Try **⚙️ Rules Management** to add/edit rules
+9. Check **📜 Scan History** for past scans
 
 ## 🔮 Future Enhancements
 
