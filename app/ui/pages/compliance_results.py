@@ -413,7 +413,7 @@ def _render_all_violations(violations: list[dict], result: dict | None = None) -
 
             # Display past remediations if available
             v_type = v.get("violation_type", "")
-            past_docs = rag_service.query_remediations(v_type, k=2)
+            past_docs = rag_service.query_remediations(v_type, k=2, violation_type=v_type)
             if past_docs:
                 st.markdown("**📚 Historical Context (Similar Past Resolutions):**")
                 for doc in past_docs:

@@ -136,9 +136,18 @@ class RAGService:
         self.remediations_store.add_documents([doc])
         logger.info(f"Added historical remediation for {violation_type}")
 
-    def query_remediations(self, violation_query: str, k: int = 2) -> list[Document]:
-        """Find similar past violations and their resolutions."""
-        return self.remediations_store.similarity_search(violation_query, k=k)
+    def query_remediations(self, violation_query: str, k: int = 2, violation_type: str | None = None) -> list[Document]:
+        """Find past resolutions, optionally filtered by exact violation type."""
+        try:
+            if violation_type:
+                return self.remediations_store.similarity_search(
+                    violation_query,
+                    k=k,
+                    filter={"violation_type": violation_type},
+                )
+            return self.remediations_store.similarity_search(violation_query, k=k)
+        except Exception:
+            return []
 
 # Singleton instance
 _rag_service = None
