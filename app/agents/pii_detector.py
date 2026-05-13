@@ -250,6 +250,7 @@ class PIIDetector:
         Remove duplicate violations based on matched text and type.
 
         Keeps the detection with higher confidence when duplicates are found.
+        Normalizes violation types to prevent duplicates like 'Email Address' vs 'Email Address Detection'.
 
         Args:
             violations: List of violation dicts.
@@ -259,7 +260,16 @@ class PIIDetector:
         """
         seen: dict[str, dict[str, Any]] = {}
         for v in violations:
-            key = f"{v.get('matched_text', '')}_{v.get('violation_type', '')}"
+            # Normalize violation type (LLMs sometimes append " Detection")
+            v_type = v.get('violation_type', '')
+            if v_type.endswith(' Detection'):
+                v_type = v_type[:-10]
+            v['violation_type'] = v_type
+            
+            # Use case-insensitive matching for deduplication
+            matched_text = str(v.get('matched_text', '')).lower().strip()
+            key = f"{matched_text}_{v_type.lower()}"
+            
             if key in seen:
                 # Keep the one with higher confidence
                 if v.get("confidence", 0) > seen[key].get("confidence", 0):
